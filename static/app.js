@@ -107,7 +107,7 @@
             }
 
             $.ajax({
-                url   : "/auth/register",
+                url   : "/bulk-data-server/auth/register",
                 method: "POST",
                 data  : params
             }).then(
@@ -263,7 +263,7 @@
         MODEL.on("change:fhir_server_url", function(e) {
             $("#try-app-link").attr(
                 "href",
-                "/sample-app/index.html?server=" +
+                "/bulk-data-server/sample-app/index.html?server=" +
                 encodeURIComponent(e.data.newValue)
             );
         });
@@ -326,6 +326,7 @@
         $("#content").show();
         bindEventHandlers();
         MODEL.set("auth_url", BASE_URL + "/auth/token");
+
         MODEL.set("auth_type", "jwks_url");
         MODEL.on("change", function(e) {
             // console.log("Changed " + e.data.name + ": ", MODEL.dump());
