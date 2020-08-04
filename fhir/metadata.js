@@ -51,11 +51,11 @@ module.exports = (req, res) => {
                             "extension": [
                                 {
                                     "url": "token",
-                                    "valueUri": `/auth/token`
+                                    "valueUri": `bulk-data-server/auth/token`
                                 },
                                 {
                                     "url": "register",
-                                    "valueUri": `/auth/register`
+                                    "valueUri": `bulk-data-server/auth/register`
                                 }
                             ]
                         }
