@@ -5,7 +5,7 @@ const SERVER_BASE_URL = process.env.SERVER_BASE_URL
 
 module.exports = {
 
-    baseUrl: `${SERVER_BASE_URL}/bulk-data-server` || `http://localhost:${PORT}/bulk-data-server`,
+    baseUrl: SERVER_BASE_URL ? `${SERVER_BASE_URL}/bulk-data-server` : `http://localhost:${PORT}/bulk-data-server`,
 
     port: PORT,
 

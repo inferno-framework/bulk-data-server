@@ -724,6 +724,18 @@ const outcomes = {
     )
 };
 
+function getRequestUrl(req)
+{
+    let requestUrl = req.protocol + "://" + req.headers.host + req.originalUrl;
+    return requestUrl;
+}
+
+function getBaseUrl(req)
+{
+    let baseUrl = req.protocol + "://" + req.headers.host + "/bulk-data-server"
+    return baseUrl;
+}
+
 module.exports = {
     htmlEncode,
     readFile,
@@ -759,5 +771,7 @@ module.exports = {
     tagResource,
     scopeSet,
     getGrantedScopes,
-    hasAccessToResourceType
+    hasAccessToResourceType,
+    getRequestUrl,
+    getBaseUrl
 };
