@@ -2,6 +2,8 @@ const moment = require("moment");
 const crypto = require("crypto");
 const config = require("../../config");
 const router = require("express").Router({ mergeParams: true });
+const Lib = require("../../lib");
+
 const entries = [
     require("./Patient--everything"),
     require("./Group-i-everything"),
@@ -21,7 +23,7 @@ router.get("/", (req, res) => res.json({
     "link": [
         {
             "relation": "self",
-            "url": `${config.baseUrl}/fhir/OperationDefinition`
+            "url" : Lib.getBaseUrl(req) + '/fhir/OperationDefinition'
         }
     ],
     entry: entries
