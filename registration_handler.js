@@ -33,7 +33,8 @@ module.exports = (req, res) => {
     // Build the result token
     let jwtToken = {
         jwks    : jwks ? JSON.parse(jwks) : undefined,
-        jwks_url: jwks_url || undefined
+        jwks_url: jwks_url || undefined,
+        scope: "system/*.read"
     };
 
     // Note that if dur is 0 accessTokensExpireIn will not be included
