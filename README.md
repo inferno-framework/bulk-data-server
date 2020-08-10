@@ -48,6 +48,6 @@ You can customize your settings by editing the file `config.js`. You can also pa
 
 - `NODE_ENV` - Typically this is `production`, `development` or `test`. Defaults to `production`.
 - `PORT` - The port to listen on. Defaults to `9444` for running tests and `9443` otherwise.
-- `BASE_URL` - The base url for the link generation. Defaults to `http://localhost:${PORT}`.
+- `BASE_URL` - The base url for the link generation. Defaults to `http://localhost:${PORT}`. Note: if this does not match the deployed URL, some of the returned information may not be correct.
 - `SECRET` - The secret for signing jwt tokens. Defaults to "this-is-our-big-secret". You must set this one.
 
