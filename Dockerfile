@@ -4,7 +4,6 @@ WORKDIR /app
 
 ENV NODE_ENV "production"
 ENV PORT "9444"
-ENV SERVER_BASE_URL "http://10.14.196.25"
 
 # Install and cache
 COPY package.json      /tmp/package.json
