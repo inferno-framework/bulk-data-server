@@ -268,7 +268,7 @@ module.exports = (req, res) => {
 
         var token = Object.assign({}, clientDetailsToken.context, {
             token_type: "bearer",
-            scope: clientDetailsToken.scope || req.body.scope,
+            scope     : clientDetailsToken.scope || req.body.scope,
             client_id : req.body.client_id,
             expires_in: expiresIn
         });
