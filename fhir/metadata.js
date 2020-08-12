@@ -51,6 +51,7 @@ class CapabilityStatement
                 "operation": [
                     {
                         "extension": [
+
                             {
                                 "url": "http://hl7.org/fhir/StructureDefinition/capabilitystatement-expectation",
                                 "valueCode": "SHOULD"
@@ -68,6 +69,7 @@ class CapabilityStatement
                 "operation": [
                     {
                         "extension": [
+
                             {
                                 "url": "http://hl7.org/fhir/StructureDefinition/capabilitystatement-expectation",
                                 "valueCode": "SHOULD"
@@ -77,6 +79,7 @@ class CapabilityStatement
                         "definition": this.stu === 4 ?
                             "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/group-export" :
                             { reference: "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/group-export" }
+
                     }
                 ]
             },
@@ -201,3 +204,4 @@ module.exports = (req, res) => {
 
     res.json(statement.toJSON());
 };
+
