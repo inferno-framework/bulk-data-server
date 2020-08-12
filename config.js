@@ -117,6 +117,7 @@ module.exports = {
         "Practitioner",
         "PractitionerRole",
         "Procedure",
-        "Provenance"
+        "Provenance",
+        "RelatedPerson"
     ]
 };
