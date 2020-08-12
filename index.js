@@ -83,6 +83,11 @@ if (!module.parent) {
     });
 }
 
+// Make it easier to kill the process when being run through Docker
+process.on('SIGINT', function() {
+    process.exit();
+});
+
 module.exports = {
     app,
     server: http.createServer(app)
