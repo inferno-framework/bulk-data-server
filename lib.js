@@ -491,7 +491,7 @@ function getRequestUrl(req)
 
 function getBaseUrl(req)
 {
-    let baseUrl = req.protocol + "://" + req.headers.host + "/bulk-data-server"
+    let baseUrl = req.protocol + "://" + req.headers.host + config.bulkDataServerPath;
     return baseUrl;
 }
 

@@ -66,7 +66,7 @@ router.use(function (err, req, res, next) {
 });
 
 if (!module.parent) {
-    app.use('/bulk-data-server', router);
+    app.use(config.bulkDataServerPath, router);
 
     app.listen(config.port, function() {
         console.log("Server listening  at /bulk-data-server" );

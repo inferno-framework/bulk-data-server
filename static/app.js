@@ -105,7 +105,7 @@
                 params.err = authError;
             }
             $.ajax({
-                url   : "/bulk-data-server/auth/register",
+                url   : `${config.bulkDataServerPath}/auth/register`,//"/bulk-data-server/auth/register",
                 method: "POST",
                 data  : params
             }).then(
