@@ -266,7 +266,12 @@ function checkAuth(req, res, next)
         }
     }
     else {
-        if (req.sim && req.sim.secure) {
+
+        // Assume by default that authorization is required for any route that goes through the
+        // checkAuth middleware (which excludes routes like /metadata).
+        // Unless the request has 'sim' data attached to it, then pay attention to the
+        // 'secure' flag.
+        if (!req.sim || req.sim.secure) {
             return operationOutcome(
                 res,
                 "Authentication is required",
