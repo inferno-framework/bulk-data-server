@@ -236,5 +236,31 @@ module.exports = {
 
     // If a client violates the maxRequestsPerMinute restriction for more than
     // this duration (in seconds) the import session will be terminated
-    maxViolationDuration: ENV == "test" ? 0.1 : 60
+    maxViolationDuration: ENV == "test" ? 0.1 : 60,
+
+    availableResources: [
+        "AllergyIntolerance",
+        "CarePlan",
+        "CareTeam",
+        "Claim",
+        "Condition",
+        "Device",
+        "DiagnosticReport",
+        "DocumentReference",
+        "Encounter",
+        "Goal",
+        "Group",
+        "ImagingStudy",
+        "Immunization",
+        "Location",
+        "MedicationRequest",
+        "Medication",
+        "Observation",
+        "Organization",
+        "Patient",
+        "Practitioner",
+        "PractitionerRole",
+        "Procedure",
+        "Provenance"
+    ]
 };
