@@ -149,7 +149,6 @@ module.exports = async (req, res) => {
         // If the jku header is whitelisted, create a set of potential keys
         // by dereferencing the jku URL
         if (header.jku && clientDetailsToken.jwks_url) {
-            console.log("jwks url: " + clientDetailsToken.jwks_url);
 
             return Lib.fetchJwks(clientDetailsToken.jwks_url)
                 .then(json => {
