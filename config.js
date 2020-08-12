@@ -97,18 +97,27 @@ module.exports = {
     availableResources: [
         "AllergyIntolerance",
         "CarePlan",
+        "CareTeam",
         "Claim",
         "Condition",
+        "Device",
         "DiagnosticReport",
+        "DocumentReference",
         "Encounter",
         "Goal",
         "Group",
         "ImagingStudy",
         "Immunization",
+        "Location",
         "MedicationRequest",
+        "Medication",
         "Observation",
         "Organization",
         "Patient",
-        "Procedure"
+        "Practitioner",
+        "PractitionerRole",
+        "Procedure",
+        "Provenance",
+        "RelatedPerson"
     ]
 };
