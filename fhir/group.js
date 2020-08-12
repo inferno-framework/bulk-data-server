@@ -6,11 +6,11 @@ const lib    = require("../lib");
 
 const SERVER_START_TIME = moment().format("YYYY-MM-DD HH:mm:ss");
 
-function resourceCreator(req, multiplier) {
+function resourceCreator(baseUrl, multiplier) {
     return function resource(group) {
         const json = JSON.parse(group.resource_json);
         return {
-            fullUrl: lib.getBaseUrl(req) + `/fhir/Group/${json.id}`,
+            fullUrl: baseUrl + `/fhir/Group/${json.id}`,
             resource: {
                 resourceType: "Group",
                 id: json.id,
@@ -33,7 +33,7 @@ function resourceCreator(req, multiplier) {
     }
 }
 
-function bundle(req, items, multiplier) {
+function bundle(baseUrl, items, multiplier) {
     const len = items.length;
     const bundle = {
         "resourceType": "Bundle",
@@ -46,13 +46,13 @@ function bundle(req, items, multiplier) {
         "link": [
             {
                 "relation": "self",
-                "url": lib.getBaseUrl(req) + '/fhir/Group'
+                "url": baseUrl + '/fhir/Group'
             }
         ]
     };
 
     if (len) {
-        bundle.entry = items.map(resourceCreator(req, multiplier));
+        bundle.entry = items.map(resourceCreator(baseUrl, multiplier));
     }
 
     return bundle;
@@ -75,7 +75,8 @@ module.exports = (req, res) => {
                 console.error(error);
                 return lib.operationOutcome(res, "DB query error");
             }
-            res.json(bundle(req, rows, multiplier));
+            let baseUrl = lib.getBaseUrl(req);
+            res.json(bundle(baseUrl, rows, multiplier));
         }
     );
 };
