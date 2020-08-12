@@ -6,8 +6,6 @@ const BULK_DATA_SERVER_PATH = '/bulk-data-server';
 
 module.exports = {
 
-    bulkDataServerPath: BULK_DATA_SERVER_PATH,
-
     baseUrl: SERVER_BASE_URL ? `${SERVER_BASE_URL}` + BULK_DATA_SERVER_PATH : `http://localhost:${PORT}` + BULK_DATA_SERVER_PATH,
 
     port: PORT,

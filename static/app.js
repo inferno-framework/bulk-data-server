@@ -1,5 +1,4 @@
 (function($, Lib, CFG, ENV) {
-
     var map = {
         err       : { type: "string", defaultValue: "" },
         page      : { type: "number", defaultValue: CFG.defaultPageSize || 10000 },
@@ -107,7 +106,7 @@
             }
 
             $.ajax({
-                url   : `${config.bulkDataServerPath}/auth/register`,//"/bulk-data-server/auth/register",
+                url   : "/bulk-data-server/auth/register",
                 method: "POST",
                 data  : params
             }).then(
