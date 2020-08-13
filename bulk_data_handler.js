@@ -305,7 +305,7 @@ async function handleRequest(req, res, groupId = null, system=false) {
 
     // Prepare the status URL
     let params = base64url.encode(JSON.stringify(args));
-    let url = config.baseUrl + req.originalUrl.split("?").shift().replace(
+    let url = Lib.getRequestUrl(req).split("?").shift().replace(
         /(\/[^/]+)?\/fhir\/.*/,
         `/${params}/fhir/bulkstatus`
     );
@@ -414,7 +414,7 @@ async function handleStatus(req, res) {
         let errorArr = []
         let linksLen = 0;
         let params   = Object.assign({}, sim);
-        let baseUrl  = config.baseUrl + req.originalUrl.split("?").shift().replace(/\/[^/]+\/fhir\/.*/, "");
+        let baseUrl  = Lib.getRequestUrl(req).split("?").shift().replace(/\/[^/]+\/fhir\/.*/, "");
         let page     = sim.page || config.defaultPageSize;
         let bytes    = 0;
 

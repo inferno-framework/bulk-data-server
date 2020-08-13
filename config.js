@@ -1,7 +1,10 @@
 const PORT = process.env.PORT || (process.env.NODE_ENV == "test" ? 9444 : 9443);
+const SERVER_BASE_URL = process.env.BASE_URL
+const BULK_DATA_SERVER_PATH = '/bulk-data-server'
+
 module.exports = {
 
-    baseUrl: process.env.BASE_URL || `http://localhost:${PORT}`,
+    baseUrl: SERVER_BASE_URL ? `${SERVER_BASE_URL}` + BULK_DATA_SERVER_PATH : `http://localhost:${PORT}` + BULK_DATA_SERVER_PATH,
 
     port: PORT,
 
@@ -95,18 +98,27 @@ module.exports = {
     availableResources: [
         "AllergyIntolerance",
         "CarePlan",
+        "CareTeam",
         "Claim",
         "Condition",
+        "Device",
         "DiagnosticReport",
+        "DocumentReference",
         "Encounter",
         "Goal",
         "Group",
         "ImagingStudy",
         "Immunization",
+        "Location",
         "MedicationRequest",
+        "Medication",
         "Observation",
         "Organization",
         "Patient",
-        "Procedure"
+        "Practitioner",
+        "PractitionerRole",
+        "Procedure",
+        "Provenance",
+        "RelatedPerson"
     ]
 };

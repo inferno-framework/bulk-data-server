@@ -36,8 +36,7 @@ module.exports = (req, res) => {
         "implementation": {
             "description": "SMART Sample Bulk FHIR Server"
         },
-        "fhirVersion": "3.0.1",
-        "acceptUnknown": "extensions",
+        "fhirVersion": "4.0.1",
         "format": [
             "application/fhir+json"
         ],
@@ -51,11 +50,11 @@ module.exports = (req, res) => {
                             "extension": [
                                 {
                                     "url": "token",
-                                    "valueUri": `${config.baseUrl}/auth/token`
+                                    "valueUri": "/auth/token"
                                 },
                                 {
                                     "url": "register",
-                                    "valueUri": `${config.baseUrl}/auth/register`
+                                    "valueUri": "/auth/register"
                                 }
                             ]
                         }
@@ -76,21 +75,23 @@ module.exports = (req, res) => {
                 "resource": [
                     {
                         "type": "Group",
-                        "profile": {
-                            "reference": "http://hl7.org/fhir/Profile/Group"
-                        },
                         "interaction": [
                             {
                                 "code": "read"
+                            }
+                        ],
+                        "operation": [
+                            {
+                                "name": "group-export",
+                                "definition": "http://hl7.org/fhir/uv/bulkdata/OperationDefinition/group-export"
                             }
                         ],
                         "searchParam": []
                     },
                     {
                         "type": "OperationDefinition",
-                        "profile": {
-                            "reference": "http://hl7.org/fhir/Profile/OperationDefinition"
-                        },
+                        "profile": "http://hl7.org/fhir/Profile/OperationDefinition",
+
                         "interaction": [
                             {
                                 "code": "read"
@@ -102,39 +103,19 @@ module.exports = (req, res) => {
                 "operation": [
                     {
                         "name": "everything",
-                        "definition": {
-                            "reference": "OperationDefinition/Patient--everything"
-                        }
+                        "definition": "OperationDefinition/Patient--everything"
                     },
                     {
                         "name": "everything",
-                        "definition": {
-                            "reference": "OperationDefinition/Group-i-everything"
-                        }
+                        "definition": "OperationDefinition/Group-i-everything"
                     },
                     {
                         "name": "get-resource-counts",
-                        "definition": {
-                            "reference": "OperationDefinition/-s-get-resource-counts"
-                        }
+                        "definition": "OperationDefinition/-s-get-resource-counts"
                     },
                     {
                         "name": "export",
-                        "definition": {
-                            "reference": "OperationDefinition/export"
-                        }
-                    },
-                    {
-                        "name": "patient-export",
-                        "definition": {
-                            "reference": "OperationDefinition/patient-export"
-                        }
-                    },
-                    {
-                        "name": "group-export",
-                        "definition": {
-                            "reference": "OperationDefinition/group-export"
-                        }
+                        "definition": "OperationDefinition/export"
                     }
                 ]
             }

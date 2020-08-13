@@ -266,7 +266,12 @@ function checkAuth(req, res, next)
         }
     }
     else {
-        if (req.sim && req.sim.secure) {
+
+        // Assume by default that authorization is required for any route that goes through the
+        // checkAuth middleware (which excludes routes like /metadata).
+        // Unless the request has 'sim' data attached to it, then pay attention to the
+        // 'secure' flag.
+        if (!req.sim || req.sim.secure) {
             return operationOutcome(
                 res,
                 "Authentication is required",
@@ -478,6 +483,18 @@ function fetchJwks(url) {
     });
 }
 
+function getRequestUrl(req)
+{
+    let requestUrl = req.protocol + "://" + req.headers.host + req.originalUrl;
+    return requestUrl;
+}
+
+function getBaseUrl(req)
+{
+    let baseUrl = req.protocol + "://" + req.headers.host + "/bulk-data-server";
+    return baseUrl;
+}
+
 module.exports = {
     htmlEncode,
     readFile,
@@ -502,5 +519,7 @@ module.exports = {
     fhirDateTime,
     createOperationOutcome,
     fetchJwks,
-    makeArray
+    makeArray,
+    getRequestUrl,
+    getBaseUrl
 };
