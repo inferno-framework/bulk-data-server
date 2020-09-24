@@ -14,8 +14,8 @@ const encodedOutcome = require("./outcome_handler");
 
 const app = express();
 const router = express.Router();
-
-
+const fs = require('fs')
+const https = require('https')
 
 /* istanbul ignore if */
 if (process.env.NODE_ENV != "test") {
@@ -78,9 +78,15 @@ router.use(function (err, req, res, next) {
 if (!module.parent) {
     app.use("/bulk-data-server", router);
 
+    process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
+
+    app.enable('trust proxy');
+
     app.listen(config.port, function() {
         console.log("Server listening at " + config.baseUrl);
     });
+
+
 }
 
 // Make it easier to kill the process when being run through Docker
