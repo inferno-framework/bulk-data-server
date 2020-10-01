@@ -14,8 +14,6 @@ const morgan       = require("morgan");
 
 const app = express();
 const router = express.Router();
-const fs = require('fs')
-const https = require('https')
 
 if (process.env.NODE_ENV != "test") {
     router.use(morgan("combined"));
@@ -67,8 +65,6 @@ router.use(function (err, req, res, next) {
 
 if (!module.parent) {
     app.use("/bulk-data-server", router);
-
-    process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;
 
     app.enable('trust proxy');
 
