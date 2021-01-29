@@ -189,6 +189,8 @@ module.exports = (req, res) => {
 
     const { query, sim: { stu = 4 } } = req;
 
+    res.setHeader("Content-Type", "application/fhir+json");
+
     if (query._format) {
         let format = query._format.toLowerCase();
         if (!SUPPORTED_FORMATS.some(mime => format.indexOf(mime) === 0)) {
