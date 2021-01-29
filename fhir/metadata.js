@@ -15,6 +15,8 @@ const SUPPORTED_FORMATS = [
 
 module.exports = (req, res) => {
 
+    res.setHeader("Content-Type", "application/fhir+json");
+
     let format = (req.query._format || req.headers.accept || "json").toLowerCase();
     if (!SUPPORTED_FORMATS.some(mime => format.indexOf(mime) === 0)) {
         return lib.replyWithError(res, "only_json_supported", 400);
