@@ -6,6 +6,9 @@ const moment    = require("moment");
 const config    = require("./config");
 const base64url = require("base64-url");
 const request   = require("request");
+const getDB     = require("./db");
+
+
 
 const RE_GT    = />/g;
 const RE_LT    = /</g;
@@ -18,6 +21,45 @@ function bool(x) {
     return !RE_FALSE.test(String(x).trim());
 }
 
+function htmlEncode(html) {
+    return String(html)
+        .trim()
+        .replace(RE_AMP , "&amp;")
+        .replace(RE_LT  , "&lt;")
+        .replace(RE_GT  , "&gt;")
+        .replace(RE_QUOT, "&quot;");
+}
+
+function operationOutcome(res, message, options = {}) {
+    return res.status(options.httpCode || 500).json(
+        createOperationOutcome(message, options)
+    );
+}
+
+function createOperationOutcome(message, {
+        issueCode = "processing", // http://hl7.org/fhir/valueset-issue-type.html
+        severity  = "error"       // fatal | error | warning | information
+    } = {})
+{
+    return {
+        "resourceType": "OperationOutcome",
+        "text": {
+            "status": "generated",
+            "div": `<div xmlns="http://www.w3.org/1999/xhtml">` +
+            `<h1>Operation Outcome</h1><table border="0"><tr>` +
+            `<td style="font-weight:bold;">${severity}</td><td>[]</td>` +
+            `<td><pre>${htmlEncode(message)}</pre></td></tr></table></div>`
+        },
+        "issue": [
+            {
+                "severity"   : severity,
+                "code"       : issueCode,
+                "diagnostics": message
+            }
+        ]
+    };
+}
+
 function makeArray(x) {
     if (Array.isArray(x)) {
         return x;
@@ -26,15 +68,6 @@ function makeArray(x) {
         return x.trim().split(/\s*,\s*/);
     }
     return [x];
-}
-
-function htmlEncode(html) {
-    return String(html)
-        .trim()
-        .replace(RE_AMP , "&amp;")
-        .replace(RE_LT  , "&lt;")
-        .replace(RE_GT  , "&gt;")
-        .replace(RE_QUOT, "&quot;");
 }
 
 /**
@@ -121,20 +154,19 @@ async function parseJSON(json)
  * 2. Ensures async result
  * 3. Catches errors and rejects the promise
  * @param {Object} json The JSON input object
- * @param {Function} replacer The JSON.stringify replacer function
- * @param {Number|String} indentation The The JSON.stringify indentation
+ * @param {Number|String} [indentation] The The JSON.stringify indentation
  * @return {Promise<String>} Promises a string
  * @todo Investigate if we can drop the try/catch block and rely on the built-in
  *       error catching.
  * @param json 
  */
-async function stringifyJSON(json, replacer = null, indentation = null)
+async function stringifyJSON(json, indentation)
 {
     return new Promise((resolve, reject) => {
         setImmediate(() => {
             let out;
             try {
-                out = JSON.stringify(json, replacer, indentation);
+                out = JSON.stringify(json, null, indentation);
             }
             catch (error) {
                 return reject(error);
@@ -173,7 +205,7 @@ async function forEachFile(options, cb)
 
         walker.on("errors", (root, nodeStatsArray, next) => {
             reject(
-                new Error("Error: " + nodeStatsArray.error + root + " - ")
+                new Error("Error: " + nodeStatsArray.map(e => e.error).join(";") + ";" + root + " - ")
             );
             next();
         });
@@ -207,44 +239,6 @@ function getPath(obj, path = "")
     return path.split(".").reduce((out, key) => out ? out[key] : undefined, obj)
 }
 
-function die(error="Unknown error")
-{
-    console.log("\n"); // in case we have something written to stdout directly
-    console.error(error);
-    process.exit(1);
-}
-
-function operationOutcome(res, message, options = {}) {
-    return res.status(options.httpCode || 500).json(
-        createOperationOutcome(message, options)
-    );
-}
-
-function createOperationOutcome(message, {
-        httpCode  = 500,
-        issueCode = "processing", // http://hl7.org/fhir/valueset-issue-type.html
-        severity  = "error"       // fatal | error | warning | information
-    } = {})
-{
-    return {
-        "resourceType": "OperationOutcome",
-        "text": {
-            "status": "generated",
-            "div": `<div xmlns="http://www.w3.org/1999/xhtml">` +
-            `<h1>Operation Outcome</h1><table border="0"><tr>` +
-            `<td style="font-weight:bold;">${severity}</td><td>[]</td>` +
-            `<td><pre>${htmlEncode(message)}</pre></td></tr></table></div>`
-        },
-        "issue": [
-            {
-                "severity"   : severity,
-                "code"       : issueCode,
-                "diagnostics": message
-            }
-        ]
-    };
-}
-
 // require a valid auth token if there is an auth token
 function checkAuth(req, res, next)
 {
@@ -256,10 +250,13 @@ function checkAuth(req, res, next)
                 config.jwtSecret
             );
         } catch (e) {
-            return res.status(401).send(
-                `${e.name || "Error"}: ${e.message || "Invalid token"}`
+            return operationOutcome(
+                res,
+                "Invalid token " + e.message,
+                { httpCode: 401 }
             );
         }
+        // @ts-ignore
         let error = token.err || token.sim_error || token.auth_error;
         if (error) {
             return res.status(401).send(error);
@@ -275,7 +272,7 @@ function checkAuth(req, res, next)
             return operationOutcome(
                 res,
                 "Authentication is required",
-                { httpCode: 400 }
+                { httpCode: 401 }
             )
         }
     }
@@ -325,7 +322,7 @@ function replyWithOAuthError(res, name, options = {})
  * whatever is supplied in the rest of the arguments. If no argument is supplied
  * the "%s" token is left as is.
  * @param {String} s The string to format
- * @param {*} ... The rest of the arguments are used for the replacements
+ * @param {*[]} [rest] The rest of the arguments are used for the replacements
  * @return {String}
  */
 function printf(s)
@@ -358,7 +355,7 @@ function parseToken(token)
     // Token header ------------------------------------------------------------
     let header;
     try {
-        header = JSON.parse(new Buffer(token[0], "base64"));
+        header = JSON.parse(Buffer.from(token[0], "base64").toString("utf8"));
     } catch (ex) {
         throw new Error("Invalid token structure. Cannot parse the token header.");
     }
@@ -371,7 +368,7 @@ function parseToken(token)
 
     // kid (required) ----------------------------------------------------------
     // The identifier of the key-pair used to sign this JWT. This identifier
-    // MUST be unique within the backend services's JWK Set.
+    // MUST be unique within the backend service's JWK Set.
     if (!header.kid) {
         throw new Error("Invalid JWT token header. Missing 'kid' property.");
     }
@@ -389,7 +386,7 @@ function parseToken(token)
     // Token body --------------------------------------------------------------
     let body;
     try {
-        body = JSON.parse(new Buffer(token[1], "base64"));
+        body = JSON.parse(Buffer.from(token[1], "base64").toString("utf8"));
     } catch (ex) {
         throw new Error("Invalid token structure. Cannot parse the token body.");
     }
@@ -399,12 +396,7 @@ function parseToken(token)
 
 function wait(ms = 0) {
     return new Promise(resolve => {
-        if (ms) {
-            setTimeout(resolve, ms);
-        }
-        else {
-            setImmediate(resolve);
-        }
+        setTimeout(resolve, uInt(ms));
     });
 }
 
@@ -495,6 +487,212 @@ function getBaseUrl(req)
     return baseUrl;
 }
 
+/**
+ * Simple Express middleware that will require the request to have "accept"
+ * header set to "application/fhir+ndjson".
+ * @param {Object} req
+ * @param {Object} res
+ * @param {Function} next
+ */
+function requireFhirJsonAcceptHeader(req, res, next) {
+    if (req.headers.accept != "application/fhir+json") {
+        return outcomes.requireAcceptFhirJson(res);
+    }
+    next();
+}
+
+/**
+ * Simple Express middleware that will require the request to have "prefer"
+ * header set to "respond-async".
+ * @param {Object} req
+ * @param {Object} res
+ * @param {Function} next
+ */
+function requireRespondAsyncHeader(req, res, next) {
+    const tokens = String(req.headers.prefer || "").trim().split(/\s*[,;]\s*/);
+    if (!tokens.includes("respond-async")) {
+        return outcomes.requirePreferAsync(res);
+    }
+    next();
+}
+
+/**
+ * Simple Express middleware that will require the request to have "Content-Type"
+ * header set to "application/json".
+ * @param {Object} req
+ * @param {Object} res
+ * @param {Function} next
+ */
+function requireJsonContentTypeHeader(req, res, next) {
+    if (!req.is("application/json")) {
+        return outcomes.requireJsonContentType(res);
+    }
+    next();
+}
+
+// /**
+//  * Returns the absolute base URL of the given request
+//  * @param {object} request 
+//  */
+// function getBaseUrl(request) {
+    
+//     // protocol
+//     let proto = request.headers["x-forwarded-proto"];
+//     if (!proto) {
+//         proto = request.socket.encrypted ? "https" : "http";
+//     }
+
+//     // host
+//     let host = request.headers.host;
+//     if (request.headers["x-forwarded-host"]) {
+//         host = request.headers["x-forwarded-host"];
+//         if (request.headers["x-forwarded-port"]) {
+//             host += ":" + request.headers["x-forwarded-port"];
+//         }
+//     }
+
+//     return proto + "://" + host;
+// }
+
+/**
+ * Get a list of all the resource types present in the database
+ * @param {number} fhirVersion 
+ * @returns {Promise<string[]>}
+ */
+function getAvailableResourceTypes(fhirVersion) {
+    const DB = getDB(fhirVersion);
+    return DB.promise("all", 'SELECT DISTINCT "fhir_type" FROM "data"')
+        .then(rows => rows.map(row => row.fhir_type));
+}
+
+function tagResource(resource, code, system = "https://smarthealthit.org/tags")
+{
+    if (!resource.meta) {
+        resource.meta = {};
+    }
+
+    if (!Array.isArray(resource.meta.tag)) {
+        resource.meta.tag = [];
+    }
+
+    const tag = resource.meta.tag.find(x => x.system === system);
+    if (tag) {
+        tag.code = code;
+    } else {
+        resource.meta.tag.push({ system, code });
+    }
+}
+
+/**
+ * Checks if the given scopes string is valid for use by backend services.
+ * This will only accept system scopes and will also reject empty scope.
+ * @param {String} scopes The scopes to check
+ * @param {number} [fhirVersion] The FHIR version that this scope should be
+ * validated against. If provided, the scope should match one of the resource
+ * types available in the database for that version (or *). Otherwise no
+ * check is performed.
+ * @returns {Promise<string>} The invalid scope or empty string on success
+ * @static
+ */
+async function getInvalidSystemScopes(scopes, fhirVersion) {
+    scopes = String(scopes || "").trim();
+
+    if (!scopes) {
+        return config.errors.missing_scope;
+    }
+
+    const scopesArray = scopes.split(/\s+/);
+
+    // If no FHIR version is specified accept anything that looks like a
+    // resource
+    let availableResources = "[A-Z][A-Za-z0-9]+";
+
+    // Otherwise check the DB to see what types of resources we have
+    if (fhirVersion) {
+        availableResources = (await getAvailableResourceTypes(fhirVersion)).join("|");
+    }
+
+    const re = new RegExp("^system/(\\*|" + availableResources + ")(\\.(read|write|\\*))?$");
+    return scopesArray.find(s => !(re.test(s))) || "";
+}
+
+// Errors as operationOutcome responses
+const outcomes = {
+    fileExpired: res => operationOutcome(
+        res,
+        "Access to the target resource is no longer available at the server " +
+        "and this condition is likely to be permanent because the file " +
+        "expired",
+        { httpCode: 410 }
+    ),
+    invalidAccept: (res, accept) => operationOutcome(
+        res,
+        `Invalid Accept header "${accept}". Currently we only recognize ` +
+        `"application/fhir+ndjson" and "application/fhir+json"`,
+        { httpCode: 400 }
+    ),
+    invalidSinceParameter: (res, value) => operationOutcome(
+        res,
+        `Invalid _since parameter "${value}". It must be valid FHIR instant and ` +
+        `cannot be a date in the future"`,
+        { httpCode: 400 }
+    ),
+    requireJsonContentType: res => operationOutcome(
+        res,
+        "The Content-Type header must be application/json",
+        { httpCode: 400 }
+    ),
+    requireAcceptFhirJson: res => operationOutcome(
+        res,
+        "The Accept header must be application/fhir+json",
+        { httpCode: 400 }
+    ),
+    requirePreferAsync: res => operationOutcome(
+        res,
+        "The Prefer header must be respond-async",
+        { httpCode: 400 }
+    ),
+    fileGenerationFailed: res => operationOutcome(
+        res,
+        getErrorText("file_generation_failed")
+    ),
+    cancelAccepted: res => operationOutcome(
+        res,
+        "The procedure was canceled",
+        { severity: "information", httpCode: 202 /* Accepted */ }
+    ),
+    cancelCompleted: res => operationOutcome(
+        res,
+        "The export was already completed",
+        { httpCode: 404 }
+    ),
+    cancelNotFound: res => operationOutcome(
+        res,
+        "Unknown procedure. Perhaps it is already completed and thus, it cannot be canceled",
+        { httpCode: 404 /* Not Found */ }
+    ),
+    importAccepted: (res, location) => operationOutcome(
+        res,
+        `Your request has been accepted. You can check its status at "${location}"`,
+        { httpCode: 202, severity: "information" }
+    ),
+    exportAccepted: (res, location) => operationOutcome(
+        res,
+        `Your request has been accepted. You can check its status at "${location}"`,
+        { httpCode: 202, severity: "information" }
+    ),
+    exportDeleted: res => operationOutcome(
+        res,
+        "The exported resources have been deleted",
+        { httpCode: 404 }
+    ),
+    exportNotCompleted: res => operationOutcome(
+        res,
+        "The export is not completed yet",
+        { httpCode: 404 }
+    )
+};
+
 module.exports = {
     htmlEncode,
     readFile,
@@ -521,5 +719,13 @@ module.exports = {
     fetchJwks,
     makeArray,
     getRequestUrl,
-    getBaseUrl
+    getBaseUrl,
+    outcomes,
+    requireRespondAsyncHeader,
+    requireFhirJsonAcceptHeader,
+    requireJsonContentTypeHeader,
+    // getBaseUrl,
+    getAvailableResourceTypes,
+    getInvalidSystemScopes,
+    tagResource
 };

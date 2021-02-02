@@ -1,121 +1,18 @@
-const base64url    = require("base64-url");
-const moment       = require("moment");
-const crypto       = require("crypto");
-const router       = require("express").Router({ mergeParams: true });
-const config       = require("./config");
+const express      = require("express");
+const cors         = require("cors");
 const Lib          = require("./lib");
-const getDB        = require("./db");
-const QueryBuilder = require("./QueryBuilder");
 const OpDef        = require("./fhir/OperationDefinition/index");
-const fhirStream   = require("./FhirStream");
-const zlib         = require("zlib");
-const toNdjson     = require("./transforms/dbRowToNdjson");
-const toCSV        = require("./transforms/dbRowToCSV");
+const bulkImporter = require("./import/bulk_data_import_handler");
+const ExportManager = require("./ExportManager");
 
 
-const STATE_STARTED  = 2;
-const STATE_CANCELED = 4;
+const router = express.Router({ mergeParams: true });
 
-// Errors as operationOutcome responses
-const outcomes = {
-    fileExpired: res => Lib.operationOutcome(
-        res,
-        "Access to the target resource is no longer available at the server " +
-        "and this condition is likely to be permanent because the file " +
-        "expired",
-        { httpCode: 410 }
-    ),
-    noContent: res => Lib.operationOutcome(
-        res,
-        "No Content - your query did not match any fhir resources",
-        { httpCode: 204 }
-    ),
-    invalidAccept: (res, accept) => Lib.operationOutcome(
-        res,
-        `Invalid Accept header "${accept}". Currently we only recognize ` +
-        `"application/fhir+ndjson" and "application/fhir+json"`,
-        { httpCode: 400 }
-    ),
-    invalidOutputFormat: (res, value) => Lib.operationOutcome(
-        res,
-        `Invalid output-format parameter "${value}". Currently we only ` +
-        `recognize "application/fhir+ndjson", "application/ndjson" and "ndjson"`,
-        { httpCode: 400 }
-    ),
-    invalidSinceParameter: (res, value) => Lib.operationOutcome(
-        res,
-        `Invalid _since parameter "${value}". It must be valid FHIR instant and ` +
-        `cannot be a date in the future"`,
-        { httpCode: 400 }
-    ),
-    requireAcceptFhirJson: res => Lib.operationOutcome(
-        res,
-        "The Accept header must be application/fhir+json",
-        { httpCode: 400 }
-    ),
-    requirePreferAsync: res => Lib.operationOutcome(
-        res,
-        "The Prefer header must be respond-async",
-        { httpCode: 400 }
-    ),
-    requireRequestStart: res => Lib.operationOutcome(
-        res,
-        "The request start time parameter (requestStart) is missing " +
-        "in the encoded params",
-        { httpCode: 400 }
-    ),
-    invalidRequestStart: (req, res) => Lib.operationOutcome(
-        res,
-        `The request start time parameter (requestStart: ${
-        req.sim.requestStart}) is invalid`,
-        { httpCode: 400 }
-    ),
-    invalidResourceType: (res, resourceType) => Lib.operationOutcome(
-        res,
-        `The requested resource type "${resourceType}" is not available on this server`,
-        { httpCode: 400 }
-    ),
-    futureRequestStart: res => Lib.operationOutcome(
-        res,
-        "The request start time parameter (requestStart) must be " +
-        "a date in the past",
-        { httpCode: 400 }
-    ),
-    fileGenerationFailed: res => Lib.operationOutcome(
-        res,
-        Lib.getErrorText("file_generation_failed")
-    ),
-    canceled: res => Lib.operationOutcome(
-        res,
-        "The procedure was canceled by the client and is no longer available",
-        { httpCode: 410 /* Gone */ }
-    ),
-    cancelAccepted: res => Lib.operationOutcome(
-        res,
-        "The procedure was canceled",
-        { severity: "information", httpCode: 202 /* Accepted */ }
-    ),
-    cancelGone: res => Lib.operationOutcome(
-        res,
-        "The procedure was already canceled by the client",
-        { httpCode: 410 /* Gone */ }
-    ),
-    cancelNotFound: res => Lib.operationOutcome(
-        res,
-        "Unknown procedure. Perhaps it is already completed and thus, it cannot be canceled",
-        { httpCode: 404 /* Not Found */ }
-    ),
-    onlyNDJsonAccept: res => Lib.operationOutcome(
-        res,
-        "Only application/fhir+ndjson is currently supported for accept headers",
-        { httpCode: 400 }
-    ),
-    exportAccepted: (res, location) => Lib.operationOutcome(
-        res,
-        `Your request have been accepted. You can check it's status at "${location}"`,
-        { httpCode: 202, severity: "information" }
-    )
-};
+const jsonTypes = [
+    "application/json",
+    "application/fhir+json",
+    "application/json+fhir"
+];
 
 // Start helper express middlewares --------------------------------------------
 function extractSim(req, res, next) {
@@ -555,93 +452,88 @@ function handleFileDownload(req, res) {
         input.pipe(res)
     });
 }
+// =============================================================================
+// BulkData Export Endpoints
+// =============================================================================
 
 // System Level Export
 // Export data from a FHIR server whether or not it is associated with a patient.
 // This supports use cases like backing up a server or exporting terminology
 // data by restricting the resources returned using the _type parameter.
-router.get("/\\$export", [
-    // The "Accept" header must be "application/fhir+ndjson". Currently we
-    // don't know how to handle anything else.
-    requireFhirJsonAcceptHeader,
-
-    // The "Prefer" header must be "respond-async". Currently we don't know
-    // how to handle anything else
-    requireRespondAsyncHeader,
-
-    // Validate auth token if present
-    Lib.checkAuth,
-
-    handleSystemLevelExport
-]);
+router.route("/\\$export")
+    .post(express.json({ type: jsonTypes }))
+    .all(
+        extractSim,
+        Lib.requireFhirJsonAcceptHeader,
+        Lib.requireRespondAsyncHeader,
+        Lib.checkAuth,
+        ExportManager.createKickOffHandler(true)
+    );
 
 // /Patient/$export - Returns all data on all patients
 // /$export - does the same on this server because we don't
-router.get("/Patient/\\$export", [
-
-    // The "Accept" header must be "application/fhir+ndjson". Currently we
-    // don't know how to handle anything else.
-    requireFhirJsonAcceptHeader,
-
-    // The "Prefer" header must be "respond-async". Currently we don't know
-    // how to handle anything else
-    requireRespondAsyncHeader,
-
-    // Validate auth token if present
-    Lib.checkAuth,
-
-    handlePatient
-]);
-
-// Provides access to all data on all patients in the nominated group
-router.get("/group/:groupId/\\$export", [
-
-    // The "Accept" header must be "application/fhir+ndjson". Currently we
-    // don't know how to handle anything else.
-    requireFhirJsonAcceptHeader,
-
-    // The "Prefer" header must be "respond-async". Currently we don't know
-    // how to handle anything else
-    requireRespondAsyncHeader,
-
-    // Validate auth token if present
-    Lib.checkAuth,
-
-    handleGroup
-]);
+router.route(["/Patient/\\$export", "/group/:groupId/\\$export"])
+    .post(express.json({ type: jsonTypes }))
+    .all(
+        extractSim,
+        Lib.requireFhirJsonAcceptHeader,
+        Lib.requireRespondAsyncHeader,
+        Lib.checkAuth,
+        ExportManager.createKickOffHandler()
+    );
 
 // This is the endPoint that should provide progress information
-router.get("/bulkstatus", [
-    extractSim,
+router.get("/bulkstatus/:id", [
     Lib.checkAuth,
-    validateRequestStart,
-    handleStatus
+    ExportManager.createStatusHandler()
 ]);
 
 // The actual file downloads 
 router.get("/bulkfiles/:file", [
     extractSim,
     Lib.checkAuth,
-    handleFileDownload
+    ExportManager.createDownloadHandler()
 ]);
 
-router.delete("/bulkstatus", [
-    extractSim,
+router.delete("/bulkstatus/:id", [
     Lib.checkAuth,
-    cancelFlow
+    ExportManager.createCancelHandler()
 ]);
+
+// =============================================================================
+// BulkData Import Endpoints
+// =============================================================================
+
+// Return import progress by task id generated during kick-off request
+// and provide time interval for client to wait before checking again
+router.get("/import-status/:taskId", bulkImporter.createImportStatusHandler());
+
+// Stop an import that has not completed
+router.delete("/import-status/:taskId", bulkImporter.cancelImport);
+
+// Kick-off import
+router.post("/\\$import", bulkImporter.createImportKickOffHandler());
+
+// =============================================================================
+// FHIR/Other Endpoints
+// =============================================================================
 
 // host dummy conformance statement
-router.get("/metadata", require("./fhir/metadata"));
+router.get("/metadata", cors({ origin: true }), extractSim, require("./fhir/metadata"));
 
 // list all the groups with their IDs and the number of patients included
-router.get("/Group", require("./fhir/group"));
+router.get("/Group", cors({ origin: true }), require("./fhir/group"));
+
+router.get("/\\$get-patients", cors({ origin: true }), require("./fhir/patient"));
 
 // $get-resource-counts operation
-router.get("/\\$get-resource-counts", require("./fhir/get-resource-counts"));
+router.get("/\\$get-resource-counts", cors({ origin: true }), require("./fhir/get-resource-counts"));
 
 // operation definitions
-router.use("/OperationDefinition", OpDef);
+router.use("/OperationDefinition", cors({ origin: true }), OpDef);
+
+// router.get("/files/", Lib.checkAuth, express.static(__dirname + "/attachments"));
+router.use('/attachments', cors({ origin: true }), Lib.checkAuth, express.static(__dirname + "/attachments"));
 
 
 module.exports = router;

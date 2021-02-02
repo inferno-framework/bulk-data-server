@@ -1,12 +1,9 @@
-const crypto    = require("crypto");
 const jwt       = require("jsonwebtoken");
-const base64url = require("base64-url");
 const jwkToPem  = require("jwk-to-pem");
 const config    = require("./config");
 const Lib       = require("./lib");
-const ScopeSet  = require("./ScopeSet");
 
-module.exports = (req, res) => {
+module.exports = async (req, res) => {
 
     // Require "application/x-www-form-urlencoded" POSTs -----------------------
     let ct = req.headers["content-type"] || "";
@@ -98,7 +95,10 @@ module.exports = (req, res) => {
     }
 
     // Validate scope ----------------------------------------------------------
-    let tokenError = ScopeSet.getInvalidSystemScopes(req.body.scope);
+    // Note that the scope check if FHIR version dependent and makes sure that
+    // no unknown resources are involved. However, this code is common for every
+    // FHIR version so we just use "4" here.
+    let tokenError = await Lib.getInvalidSystemScopes(req.body.scope, 4);
     if (tokenError) {
         return Lib.replyWithOAuthError(res, "invalid_scope", {
             message: "invalid_scope",
@@ -114,7 +114,7 @@ module.exports = (req, res) => {
     }
 
     // Get the authentication token header
-    let header = jwt.decode(req.body.client_assertion, { complete: true }).header;
+    let header = jwt.decode(req.body.client_assertion, { complete: true, json: true }).header;
 
     // Get the "kid" from the authentication token header
     let kid = header.kid;
@@ -201,8 +201,8 @@ module.exports = (req, res) => {
         return Promise.reject();
     })
 
-    // Filter the potential keys to retain only those where the kty and
-    // kid match the values supplied in the client's JWK header.
+    // Filter the potential keys to retain only those where the `kid` matches
+    // the value supplied in the client's JWK header.
     .then(keys => {
 
         let publicKeys = keys.filter(key => {
@@ -215,8 +215,7 @@ module.exports = (req, res) => {
 
         if (!publicKeys.length) {
             Lib.replyWithOAuthError(res, "invalid_grant", {
-                message: `No public keys found in the JWKS with "kid" equal to "${kid
-                }" and "kty" equal to "${header.kty}"`
+                message: `No public keys found in the JWKS with "kid" equal to "${kid}"`
             });
             return Promise.reject();
         }
@@ -229,16 +228,22 @@ module.exports = (req, res) => {
     // - If all attempts fail, the signature verification fails.
     .then(publicKeys => {
 
+        let error = "";
         let success = publicKeys.some(key => {
+            /**
+             * @type {import("jsonwebtoken").Algorithm}
+             */
+            const algorithm = key.alg;
             try {
                 jwt.verify(
                     req.body.client_assertion,
                     jwkToPem(key),
-                    { algorithm: key.alg }
+                    { algorithms: [algorithm] }
                 );
                 return true;
             } catch(ex) {
-                console.error(ex);
+                // console.error(ex);
+                error = ex.message;
                 return false;
             }
         });
@@ -246,7 +251,7 @@ module.exports = (req, res) => {
         if (!success) {
 
             Lib.replyWithOAuthError(res, "invalid_grant", {
-                message: "Unable to verify the token with any of the public keys found in the JWKS"
+                message: "Unable to verify the token with any of the public keys found in the JWKS: " + error
             });
             return Promise.reject();
         }
@@ -261,9 +266,15 @@ module.exports = (req, res) => {
             return Promise.reject();
         }
 
-        const expiresIn = clientDetailsToken.accessTokensExpireIn ?
-            clientDetailsToken.accessTokensExpireIn * 60 :
-            config.defaultTokenLifeTime * 60;
+        // Here, expiresIn is set to the server settings for token lifetime.
+        // However, if the authentication token has shorter lifetime it will
+        // also be used for the access token.
+        const expiresIn = Math.round(Math.min(
+            authenticationToken.exp - Math.floor(Date.now() / 1000),
+            clientDetailsToken.accessTokensExpireIn ?
+                clientDetailsToken.accessTokensExpireIn * 60 :
+                config.defaultTokenLifeTime * 60
+        ));
 
         var token = Object.assign({}, clientDetailsToken.context, {
             token_type: "bearer",
@@ -285,7 +296,5 @@ module.exports = (req, res) => {
 
         res.json(token);
     })
-    .catch((e) => {
-        res.end(e)
-    });
+    .catch(e => res.end(String(e  || "")));
 };

@@ -1,26 +1,28 @@
-const express      = require("express");
-const bodyParser   = require("body-parser");
-const config       = require("./config");
-const Lib          = require("./lib");
-const DB           = require("./db");
-const generator    = require("./generator");
-const tokenHandler = require("./token_handler");
-const register     = require("./registration_handler");
-const bulkData     = require("./bulk_data_handler");
-const env          = require("./env");
-const morgan       = require("morgan");
-
+const express        = require("express");
+const http           = require("http");
+const bodyParser     = require("body-parser");
+const morgan         = require("morgan");
+const cors           = require("cors");
+const config         = require("./config");
+const generator      = require("./generator");
+const tokenHandler   = require("./token_handler");
+const register       = require("./registration_handler");
+const bulkData       = require("./bulk_data_handler");
+const env            = require("./env");
+const encodedOutcome = require("./outcome_handler");
 
 
 const app = express();
 const router = express.Router();
 
+/* istanbul ignore if */
 if (process.env.NODE_ENV != "test") {
     router.use(morgan("combined"));
 }
 
 // HTTP to HTTPS redirect (this is Heroku-specific!)
 /*router.use((req, res, next) => {
+
     let proto = req.headers["x-forwarded-proto"];
     let host  = req.headers.host;
     if (proto && (`${proto}://${host}` !== config.baseUrl)) { 
@@ -31,7 +33,8 @@ if (process.env.NODE_ENV != "test") {
 });*/
 
 // backend services authorization
-router.post("/auth/token", bodyParser.urlencoded({ extended: false }), tokenHandler);
+router.options("/auth/token", cors({ origin: true }));
+router.post("/auth/token", cors({ origin: true }), bodyParser.urlencoded({ extended: false }), tokenHandler);
 
 // backend services registration
 router.post("/auth/register", bodyParser.urlencoded({ extended: false }), register);
@@ -54,6 +57,9 @@ router.get("/server-config.js", (req, res) => {
 // bulk data implementation
 router.use(["/:sim/fhir", "/fhir"], bulkData);
 
+// Generic operation outcomes
+app.use("/outcome", encodedOutcome);
+
 // static files
 router.use(express.static("static"));
 
@@ -63,6 +69,9 @@ router.use(function (err, req, res, next) {
     res.status(500).send('Something broke!');
 });
 
+// If invoked directly start a server (otherwise let the tests do that)
+/* istanbul ignore if */
+// @ts-ignore
 if (!module.parent) {
     app.use("/bulk-data-server", router);
 
@@ -83,4 +92,7 @@ process.on('SIGTERM', function() {
     process.exit();
 });
 
-module.exports = app;
+module.exports = {
+    app,
+    server: http.createServer(app)
+};

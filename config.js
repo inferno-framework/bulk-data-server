@@ -1,4 +1,5 @@
-const PORT = process.env.PORT || (process.env.NODE_ENV == "test" ? 9444 : 9443);
+const ENV  = process.env.NODE_ENV || "production";
+const PORT = process.env.PORT || (ENV == "test" ? 9444 : 9443);
 const SERVER_BASE_URL = process.env.BASE_URL
 const BULK_DATA_SERVER_PATH = '/bulk-data-server'
 
@@ -8,7 +9,8 @@ module.exports = {
 
     port: PORT,
 
-    throttle: 1,
+    // Delay in milliseconds between NDJSON row generation
+    throttle: 0,
     
     // Max. number of fhir resources (lines) in one ndjson file
     defaultPageSize: 10000,
@@ -26,6 +28,9 @@ module.exports = {
     // The bigger the number the fewer sql queries will be executed but more
     // memory will be needed to store those bigger chunks of data
     rowsPerChunk: 500,
+
+    // In minutes! Files created after export are deleted after 60 minutes.
+    maxExportAge: 60,
 
     jwtSecret: process.env.SECRET || "this-is-our-big-secret",
 
@@ -121,4 +126,141 @@ module.exports = {
         "Provenance",
         "RelatedPerson"
     ]
+    // When the "_elements" parameter is used the values are concatenated to
+    // this array to ensure that required elements are always included.
+    // Can contain:
+    // - [element] to match against any resourceType
+    // - [ResourceType].[element] to mach within a specified resource type
+    // Note that items below are based on US Core or Argonaut R4 Profiles
+    requiredElements: [
+        "resourceType",
+        "id",
+
+        "AllergyIntolerance.patient",
+        "AllergyIntolerance.substance",
+        "AllergyIntolerance.status",
+
+        "CarePlan.text",
+        "CarePlan.subject",
+        "CarePlan.status",
+        "CarePlan.category",
+
+        "CareTeam.subject",
+        "CareTeam.status",
+        "CareTeam.category",
+
+        // Claim
+
+        "Condition.patient",
+        "Condition.code",
+        "Condition.category",
+        "Condition.clinicalStatus",
+        "Condition.verificationStatus",
+
+        "Device.type",
+        "Device.udicarrier",
+        "Device.patient",
+
+        "DiagnosticReport.status",
+        "DiagnosticReport.category",
+        "DiagnosticReport.code",
+        "DiagnosticReport.subject",
+        "DiagnosticReport.effectiveDateTime",
+        "DiagnosticReport.effectivePeriod",
+        "DiagnosticReport.issued",
+        "DiagnosticReport.performer",
+        "DiagnosticReport.result",
+        "DiagnosticReport.image",
+        "DiagnosticReport.presentedForm",
+
+        "DocumentReference.status",
+        "DocumentReference.type",
+        "DocumentReference.category",
+        "DocumentReference.subject",
+        "DocumentReference.content",
+
+        "Encounter.status",
+        "Encounter.class",
+        "Encounter.type",
+        "Encounter.subject",
+
+        // ExplanationOfBenefit
+        // Group
+        // ImagingStudy
+        
+        "MedicationRequest.status",
+        "MedicationRequest.intent",
+        "MedicationRequest.medicationCodeableConcept",
+        "MedicationRequest.medicationReference",
+        "MedicationRequest.subject",
+        "MedicationRequest.authoredOn",
+        "MedicationRequest.requester",
+
+        "Organization.active",
+        "Organization.name",
+
+        "Practitioner.identifier",
+        "Practitioner.name",
+
+        "Observation.status",
+        "Observation.category",
+        "Observation.code",
+        "Observation.subject",
+        "Observation.valueQuantity",
+        "Observation.valueCodeableConcept",
+        "Observation.valueString",
+        "Observation.valueRange",
+        "Observation.valueRatio",
+        "Observation.valueSampledData",
+        "Observation.valueAttachment",
+        "Observation.valueTime",
+        "Observation.valueDateTime",
+        "Observation.valuePeriod",
+        "Observation.DataAbsentReason",
+        "Observation.effectiveDateTime",
+        "Observation.effectivePeriod",
+        "Observation.referenceRange",
+
+        "Immunization.status",
+        "Immunization.date",
+        "Immunization.vaccineCode",
+        "Immunization.patient",
+        "Immunization.wasNotGiven",
+        "Immunization.reported",
+
+        "Patient.identifier",
+        "Patient.name",
+        "Patient.gender",
+
+        "Procedure.patient",
+        "Procedure.status",
+        "Procedure.code",
+        "Procedure.performedDateTime",
+        "Procedure.performedPeriod",
+    ],
+
+    // IMPORT ------------------------------------------------------------------
+
+    // Maximum NDJSON file line length (as number of characters)
+    ndjsonMaxLineLength: 5000000,
+    
+    // How many downloads to run in parallel
+    maxParallelDownloads: 3,
+
+    // Only store the first 50 resources from each downloaded file
+    maxImportsPerResourceType: 50,
+
+    // Run database maintenance once a minute (set in milliseconds)
+    dbMaintenanceTickInterval: ENV == "test" ? 10 : 60 * 1000,
+
+    // Purge records older than 10 min (set in seconds). Also, any finished tasks
+    // will be kept for this duration and can be checked for status or canceled.
+    dbMaintenanceMaxRecordAge: ENV == "test" ? 1 : 10 * 60,
+
+    // If this is exceeded reply with 429 Too many requests (works per IP)
+    maxRequestsPerMinute: 30,
+
+    // If a client violates the maxRequestsPerMinute restriction for more than
+    // this duration (in seconds) the import session will be terminated
+    maxViolationDuration: ENV == "test" ? 0.1 : 60
 };
