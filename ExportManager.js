@@ -572,6 +572,7 @@ class ExportManager
                                 baseUrl,
                                 base64url.encode(JSON.stringify({
                                     id: this.id,
+                                    secure: this.secure,
                                     fileError: `Failed to export ${i + 1}.${row.fhir_type}.${this.outputFormat}`
                                 })),
                                 "/fhir/bulkfiles/",
@@ -603,6 +604,7 @@ class ExportManager
                                         id    : this.id,
                                         limit : cnt,
                                         del   : 1,
+                                        secure: this.secure,
                                         offset
                                     })),
                                     "/fhir/bulkfiles/",
@@ -622,7 +624,8 @@ class ExportManager
                                 base64url.encode(JSON.stringify({
                                     id    : this.id,
                                     offset,
-                                    limit : count
+                                    limit : count,
+                                    secure: this.secure,
                                 })),
                                 "/fhir/bulkfiles/",
                                 `${i + 1}.${row.fhir_type}.${this.outputFormat}`
@@ -674,6 +677,15 @@ class ExportManager
     {
         if (this.secure && !req.headers.authorization) {
             return lib.operationOutcome(res, "Not authorized", { httpCode: 401 });
+        }
+
+        if (this.secure) {
+            const grantedScopes = lib.getGrantedScopes(req)
+            const resourceType  = req.params.file.split(".")[1]
+            const hasAccess = lib.hasAccessToResourceType(grantedScopes, resourceType, "read")
+            if (!hasAccess) {
+                return lib.operationOutcome(res, "Permission denied", { httpCode: 403 });
+            }
         }
 
         if (this.jobStatus !== "EXPORTED") {        
@@ -735,6 +747,7 @@ class ExportManager
                 _elements  : this.fhirElements,
                 err        : this.fileError,
                 deleted    : !!req.sim.del,
+                secure     : this.secure
             }));
 
             const transform = exportTypes[this.outputFormat].transform;
@@ -877,6 +890,9 @@ class ExportManager
     {
         const requestedTypes = lib.makeArray(types || "").map(t => String(t || "").trim()).filter(Boolean);
         const availableTypes = await lib.getAvailableResourceTypes(this.stu);
+        if (availableTypes.indexOf("OperationDefinition") === -1) {
+            availableTypes.push("OperationDefinition");
+        }
         const badParam = requestedTypes.find(type => availableTypes.indexOf(type) == -1);
         if (badParam) {
             this.resourceTypes = [];

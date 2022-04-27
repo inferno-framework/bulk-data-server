@@ -1,6 +1,7 @@
 const jwt       = require("jsonwebtoken");
 const jwkToPem  = require("jwk-to-pem");
 const config    = require("./config");
+const { scopeSet } = require("./lib");
 const Lib       = require("./lib");
 
 module.exports = async (req, res) => {
@@ -114,7 +115,15 @@ module.exports = async (req, res) => {
     }
 
     // Get the authentication token header
-    let header = jwt.decode(req.body.client_assertion, { complete: true, json: true }).header;
+    let decodedToken = jwt.decode(req.body.client_assertion, { complete: true, json: true });
+    if (!decodedToken) {
+        return Lib.replyWithOAuthError(res, "invalid_client", {
+            message: "sim_invalid_token",
+            code   : 400
+        });
+    }
+
+    let header = decodedToken.header;
 
     // Get the "kid" from the authentication token header
     let kid = header.kid;
@@ -276,9 +285,19 @@ module.exports = async (req, res) => {
                 config.defaultTokenLifeTime * 60
         ));
 
+        const grantedScopes = scopeSet(req.body.scope)
+            .filter(s => s.action !== "write")
+            .map(s => ({ ...s, action: "read" }));
+
+        if (!grantedScopes.length) {
+            return Lib.replyWithOAuthError(res, "invalid_scope", {
+                message: "No access could be granted."
+            });
+        }
+
         var token = Object.assign({}, clientDetailsToken.context, {
             token_type: "bearer",
-            scope     : clientDetailsToken.scope || req.body.scope,
+            scope     : grantedScopes.join(" "), // "system/*.read", //req.body.scope,
             client_id : req.body.client_id,
             expires_in: expiresIn
         });

@@ -396,6 +396,34 @@ function parseToken(token)
     return body;
 }
 
+/**
+ * @param {import("express").Request} req 
+ * @returns {{system: string, resource: string, action: string}[]}
+ */
+function getGrantedScopes(req) {
+    try {
+        const accessToken = jwt.verify((req.headers.authorization || "").replace(/^bearer\s+/i, ""), config.jwtSecret)
+        // @ts-ignore jwt.verify returns string | object but for JWK we know it is an object
+        return scopeSet(accessToken.scope)
+    } catch {
+        return []
+    }
+}
+
+/**
+ * @param {{system: string, resource: string, action: string}[]} grantedScopes 
+ * @param {string} resourceType 
+ * @param {"read"|"write"|"*"} [access="read"]
+ * @returns {boolean}
+ */
+function hasAccessToResourceType(grantedScopes, resourceType, access = "read") {
+    return grantedScopes.some(scope => (
+        (scope.system === "*" || scope.system === "system") &&
+        (scope.resource === "*" || scope.resource === resourceType) &&
+        (scope.action === "*" || scope.action === access)
+    ))
+}
+
 function wait(ms = 0) {
     return new Promise(resolve => {
         setTimeout(resolve, uInt(ms));
@@ -574,6 +602,26 @@ function tagResource(resource, code, system = "https://smarthealthit.org/tags")
 }
 
 /**
+ * Parses a scopes string and returns an array of {system, resource, action}
+ * objects
+ * @param {string} scopes 
+ * @returns {{system: string, resource: string, action: string}[]}
+ */
+function scopeSet(scopes) {
+    return scopes.trim().split(/\s+/).map(s => {
+        const [system, resource, action] = s.split(/\/|\./)
+        return {
+            system,
+            resource,
+            action,
+            toString() {
+                return `${this.system}/${this.resource}.${this.action}`;
+            }
+        }
+    }) 
+}
+
+/**
  * Checks if the given scopes string is valid for use by backend services.
  * This will only accept system scopes and will also reject empty scope.
  * @param {String} scopes The scopes to check
@@ -728,6 +776,9 @@ module.exports = {
     getAvailableResourceTypes,
     getInvalidSystemScopes,
     tagResource,
+    scopeSet,
+    getGrantedScopes,
+    hasAccessToResourceType,
     getRequestUrl,
     getBaseUrl
 };
